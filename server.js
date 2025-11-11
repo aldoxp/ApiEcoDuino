@@ -43,7 +43,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     try {
-        const [users] = await pool.query('SELECT id_usuario, password_hash FROM USUARIOS WHERE email = ?', [email]);
+        const [users] = await pool.query('SELECT id_usuario, password_hash FROM usuarios WHERE email = ?', [email]);
 
         if (users.length === 0) {
             return res.status(401).json({ error: 'Credenciales inválidas.' });
@@ -79,7 +79,7 @@ app.post('/api/auth/register', async (req, res) => {
     }
 
     try {
-        const [existingUsers] = await pool.query('SELECT id_usuario FROM USUARIOS WHERE email = ?', [email]);
+        const [existingUsers] = await pool.query('SELECT id_usuario FROM usuarios WHERE email = ?', [email]);
 
         if (existingUsers.length > 0) {
             return res.status(409).json({ message: 'El correo electrónico ya está registrado.' });
@@ -89,7 +89,7 @@ app.post('/api/auth/register', async (req, res) => {
         const passwordHash = await bcrypt.hash(password, salt);
 
         const sql = `
-            INSERT INTO USUARIOS (nombre, email, password_hash)
+            INSERT INTO usuarios (nombre, email, password_hash)
             VALUES (?, ?, ?)
         `;
         const [result] = await pool.query(sql, [name, email, passwordHash]);
@@ -121,7 +121,7 @@ app.post('/api/invernaderos/crear', async (req, res) => {
         await connection.beginTransaction();
 
         const [existingInv] = await connection.query(
-            'SELECT id_invernadero FROM INVERNADERO WHERE token_dispositivo = ?',
+            'SELECT id_invernadero FROM invernadero WHERE token_dispositivo = ?',
             [tokenDispositivo]
         );
 
@@ -131,18 +131,18 @@ app.post('/api/invernaderos/crear', async (req, res) => {
         }
 
         const [invResult] = await connection.query(
-            'INSERT INTO INVERNADERO (nombre_ubicacion, token_dispositivo, ultima_conexion) VALUES (?, ?, NOW())',
+            'INSERT INTO invernadero (nombre_ubicacion, token_dispositivo, ultima_conexion) VALUES (?, ?, NOW())',
             [nombreUbicacion, tokenDispositivo]
         );
         const newInvId = invResult.insertId;
 
         await connection.query(
-            'INSERT INTO ESTADO_CONTROL (id_invernadero, luces_estado, riego_estado, ventilacion_estado) VALUES (?, 0, 0, 0)',
+            'INSERT INTO estado_control (id_invernadero, luces_estado, riego_estado, ventilacion_estado) VALUES (?, 0, 0, 0)',
             [newInvId]
         );
 
         await connection.query(
-            'INSERT INTO USUARIO_INVERNADERO (id_usuario, id_invernadero, rol) VALUES (?, ?, ?)',
+            'INSERT INTO usuario_invernadero (id_usuario, id_invernadero, rol) VALUES (?, ?, ?)',
             [userId, newInvId, 'admin']
         );
 
@@ -181,8 +181,8 @@ app.get('/api/invernaderos/user/:userId', async (req, res) => {
                 I.nombre_ubicacion,
                 I.token_dispositivo,
                 I.ultima_conexion
-            FROM INVERNADERO I
-            JOIN USUARIO_INVERNADERO UI ON I.id_invernadero = UI.id_invernadero
+            FROM invernadero I
+            JOIN usuario_invernadero UI ON I.id_invernadero = UI.id_invernadero
             WHERE UI.id_usuario = ?
             ORDER BY I.id_invernadero ASC
         `;
@@ -211,7 +211,7 @@ app.post('/api/data/ingresar', async (req, res) => {
 
     try {
         const [invernaderos] = await pool.query(
-            'SELECT id_invernadero FROM INVERNADERO WHERE token_dispositivo = ?',
+            'SELECT id_invernadero FROM invernadero WHERE token_dispositivo = ?',
             [token]
         );
 
@@ -222,7 +222,7 @@ app.post('/api/data/ingresar', async (req, res) => {
         const id_invernadero = invernaderos[0].id_invernadero;
 
         const sql = `
-            INSERT INTO REGISTRO_SENSORES 
+            INSERT INTO registro_sensores 
             (id_invernadero, fecha_hora, temp_ambiente, humedad_ambiente, humedad_suelo) 
             VALUES 
             (?, NOW(), ?, ?, ?)
@@ -235,7 +235,7 @@ app.post('/api/data/ingresar', async (req, res) => {
             Number(humedadSuelo),
         ]);
 
-        await pool.query('UPDATE INVERNADERO SET ultima_conexion = NOW() WHERE id_invernadero = ?', [id_invernadero]);
+        await pool.query('UPDATE invernadero SET ultima_conexion = NOW() WHERE id_invernadero = ?', [id_invernadero]);
 
         console.log(`[${new Date().toLocaleTimeString()}] ✔️ Lectura registrada para INV #${id_invernadero}`);
         res.status(201).json({ message: 'Datos recibidos y guardados correctamente.' });
@@ -253,7 +253,7 @@ app.get('/api/data/ultima/:id_inv', async (req, res) => {
     try {
         const sql = `
             SELECT temp_ambiente, humedad_ambiente, humedad_suelo, fecha_hora
-            FROM REGISTRO_SENSORES 
+            FROM registro_sensores 
             WHERE id_invernadero = ? 
             ORDER BY fecha_hora DESC 
             LIMIT 1
@@ -276,7 +276,7 @@ app.get('/api/data/historico/:id_inv', async (req, res) => {
     try {
         const sql = `
             SELECT fecha_hora, temp_ambiente, humedad_ambiente, humedad_suelo 
-            FROM REGISTRO_SENSORES 
+            FROM registro_sensores 
             WHERE id_invernadero = ? 
             ORDER BY fecha_hora DESC 
             LIMIT ?
@@ -301,7 +301,7 @@ app.get('/api/control/estado/:token', async (req, res) => {
 
     try {
         const [invernaderos] = await pool.query(
-            'SELECT id_invernadero FROM INVERNADERO WHERE token_dispositivo = ?',
+            'SELECT id_invernadero FROM invernadero WHERE token_dispositivo = ?',
             [token]
         );
 
@@ -312,7 +312,7 @@ app.get('/api/control/estado/:token', async (req, res) => {
         const id_invernadero = invernaderos[0].id_invernadero;
 
         const [estado] = await pool.query(
-            'SELECT luces_estado, riego_estado, ventilacion_estado FROM ESTADO_CONTROL WHERE id_invernadero = ?',
+            'SELECT luces_estado, riego_estado, ventilacion_estado FROM estado_control WHERE id_invernadero = ?',
             [id_invernadero]
         );
 
@@ -371,4 +371,5 @@ app.put('/api/control/actualizar/:id_inv', async (req, res) => {
 app.listen(port, '0.0.0.0', () => {
     console.log(`API Node.js escuchando en http://0.0.0.0:${port}`);
     console.log(`Conectado a MySQL: ${process.env.DB_NAME}`);
+
 });
